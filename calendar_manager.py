@@ -3,7 +3,7 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-# Topics and Hex Colors
+# Define calendars with their associated colors
 calendars = {
     "Gopher Hockey": "#ac503c",
     "My Appointments": "#007ba7",
@@ -34,84 +34,117 @@ color_map = {
 def authenticate_google_calendar():
     """Authenticate and return a Google Calendar API service instance."""
     creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', ['https://www.googleapis.com/auth/calendar'])
+    if os.path.exists("token.json"):
+        creds = Credentials.from_authorized_user_file(
+            "token.json", ["https://www.googleapis.com/auth/calendar"]
+        )
     else:
-        # If no valid credentials, initiate the OAuth flow
-        flow = InstalledAppFlow.from_client_secrets_file('credentials.json', ['https://www.googleapis.com/auth/calendar'])
+        flow = InstalledAppFlow.from_client_secrets_file(
+            "credentials.json", ["https://www.googleapis.com/auth/calendar"]
+        )
         creds = flow.run_local_server(port=0)
-        # Save the credentials for future use
-        with open('token.json', 'w') as token:
+        with open("token.json", "w") as token:
             token.write(creds.to_json())
-    return build('calendar', 'v3', credentials=creds)
+    return build("calendar", "v3", credentials=creds)
 
 service = authenticate_google_calendar()
 
-def get_calendar_id(calendar_name):
-    """Retrieve the ID of a calendar by its name."""
+def list_calendars():
+    """List all calendars in the user's calendar list."""
     calendars_list = service.calendarList().list().execute()
-    for calendar in calendars_list['items']:
-        if calendar['summary'] == calendar_name:
-            return calendar['id']
-    return None
+    for calendar in calendars_list["items"]:
+        print(f"Calendar Name: {calendar['summary']} (ID: {calendar['id']})")
 
 def create_calendar(name):
     """Create a new calendar with the given name."""
     calendar = {
-        'summary': name,
-        'timeZone': 'America/Chicago'
+        "summary": name,
+        "timeZone": "America/Chicago",
     }
     created_calendar = service.calendars().insert(body=calendar).execute()
-    print(f"Calendar created: {name} - ID: {created_calendar['id']}")
-    return created_calendar['id']
+    print(f"Calendar created: {created_calendar['summary']} (ID: {created_calendar['id']})")
+    return created_calendar["id"]
 
 def create_event(calendar_name, summary, start_time, end_time):
-    """Add an event to a specified calendar."""
-    calendar_id = get_calendar_id(calendar_name)
+    """Add an event to a specific calendar."""
+    # Get calendar ID
+    calendar_id = None
+    calendars_list = service.calendarList().list().execute()
+    for calendar in calendars_list["items"]:
+        if calendar["summary"] == calendar_name:
+            calendar_id = calendar["id"]
+            break
+
     if not calendar_id:
         print(f"Calendar '{calendar_name}' not found!")
         return
 
-    # Get the color associated with the calendar
-    color_hex = calendars.get(calendar_name)
-    color_id = color_map.get(color_hex, "1")  # Default to Light Blue if not found
+    # Define the event
+    color_hex = calendars.get(calendar_name, "#236192")
+    color_id = color_map.get(color_hex, "1")
 
-    # Create the event
     event = {
-        'summary': summary,
-        'start': {'dateTime': start_time, 'timeZone': 'America/Chicago'},
-        'end': {'dateTime': end_time, 'timeZone': 'America/Chicago'},
-        'colorId': color_id,
+        "summary": summary,
+        "start": {"dateTime": start_time, "timeZone": "America/Chicago"},
+        "end": {"dateTime": end_time, "timeZone": "America/Chicago"},
+        "colorId": color_id,
+        "reminders": {
+            "useDefault": False,
+            "overrides": [
+                {"method": "email", "minutes": 30},
+                {"method": "popup", "minutes": 10},
+            ],
+        },
     }
 
-    # Insert the event into the calendar
-    event = service.events().insert(calendarId=calendar_id, body=event).execute()
-    print(f"Event created: {event.get('htmlLink')}")
+    # Insert the event
+    created_event = service.events().insert(calendarId=calendar_id, body=event).execute()
+    print(f"Event created: {created_event['htmlLink']}")
+
+def update_calendar_color(calendar_name, new_color_hex):
+    """Update a calendar's color."""
+    calendar_id = None
+    calendars_list = service.calendarList().list().execute()
+    for calendar in calendars_list["items"]:
+        if calendar["summary"] == calendar_name:
+            calendar_id = calendar["id"]
+            break
+
+    if not calendar_id:
+        print(f"Calendar '{calendar_name}' not found!")
+        return
+
+    service.calendars().patch(
+        calendarId=calendar_id,
+        body={"backgroundColor": new_color_hex},
+        colorRgbFormat=True,
+    ).execute()
+    print(f"Updated color for calendar '{calendar_name}' to {new_color_hex}.")
 
 def main():
-    """Main menu for the script."""
-    print("1. Create Calendars")
-    print("2. Add Event")
+    """Main menu for managing Google Calendar."""
+    print("Google Calendar Manager")
+    print("1. List Calendars")
+    print("2. Create Calendar")
+    print("3. Add Event")
+    print("4. Update Calendar Color")
     choice = input("Enter your choice: ")
 
     if choice == "1":
-        # Create calendars for all topics
-        for name in calendars.keys():
-            create_calendar(name)
-        print("Calendars created successfully!")
+        list_calendars()
     elif choice == "2":
-        # Add an event to a specific calendar
-        print(f"Available calendars: {', '.join(calendars.keys())}")
-        calendar_name = input("Enter the calendar name: ")
-        if calendar_name not in calendars:
-            print("Calendar not found!")
-            return
-
+        calendar_name = input("Enter calendar name: ")
+        create_calendar(calendar_name)
+    elif choice == "3":
+        calendar_name = input("Enter calendar name: ")
         summary = input("Enter event summary: ")
         start_time = input("Enter start time (YYYY-MM-DDTHH:MM:SS): ")
         end_time = input("Enter end time (YYYY-MM-DDTHH:MM:SS): ")
-
         create_event(calendar_name, summary, start_time, end_time)
+    elif choice == "4":
+        calendar_name = input("Enter calendar name: ")
+        new_color_hex = input("Enter new color hex (e.g., #ff0000): ")
+        update_calendar_color(calendar_name, new_color_hex)
     else:
         print("Invalid choice!")
 
