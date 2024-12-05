@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
@@ -15,7 +16,6 @@ calendars = {
     "Twins": "#a9002d",
     "Wild": "#4d7663",
     "Wolves": "#236192",
-    "PWHL": "#2e1a47",
 }
 
 color_map = {
@@ -28,7 +28,6 @@ color_map = {
     "#a9002d": "11",
     "#4d7663": "10",
     "#236192": "1",
-    "#2e1a47": "3",
 }
 
 def authenticate_google_calendar():
@@ -79,6 +78,13 @@ def create_event(calendar_name, summary, start_time, end_time):
         print(f"Calendar '{calendar_name}' not found!")
         return
 
+     # Validate time range
+    start = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S")
+    end = datetime.strptime(end_time, "%Y-%m-%dT%H:%M:%S")
+    if start >= end:
+        print("Error: Start time must be earlier than end time.")
+        return
+
     # Define the event
     color_hex = calendars.get(calendar_name, "#236192")
     color_id = color_map.get(color_hex, "1")
@@ -98,8 +104,25 @@ def create_event(calendar_name, summary, start_time, end_time):
     }
 
     # Insert the event
-    created_event = service.events().insert(calendarId=calendar_id, body=event).execute()
-    print(f"Event created: {created_event['htmlLink']}")
+    try:
+        created_event = service.events().insert(calendarId=calendar_id, body=event).execute()
+        print(f"Event created: {created_event['htmlLink']}")
+    except Exception as e:
+        print(f"Error creating event: {e}")
+
+def prompt_for_datetime(prompt_text):
+    """Prompt the user for a date and time in a more structured way."""
+    print(f"{prompt_text}:")
+    year = input("  Year (e.g., 2024): ")
+    month = input("  Month (1-12): ")
+    day = input("  Day (1-31): ")
+    hour = input("  Hour (0-23): ")
+    minute = input("  Minute (0-59): ")
+
+    # Default seconds to "00"
+    date_time = f"{year}-{month.zfill(2)}-{day.zfill(2)}T{hour.zfill(2)}:{minute.zfill(2)}:00"
+    return date_time
+
 
 def update_calendar_color(calendar_name, new_color_hex):
     """Update a calendar's color."""
@@ -122,7 +145,7 @@ def update_calendar_color(calendar_name, new_color_hex):
     print(f"Updated color for calendar '{calendar_name}' to {new_color_hex}.")
 
 def main():
-    """Main menu for managing Google Calendar."""
+    """Main menu for the script."""
     print("Google Calendar Manager")
     print("1. List Calendars")
     print("2. Create Calendar")
@@ -138,13 +161,13 @@ def main():
     elif choice == "3":
         calendar_name = input("Enter calendar name: ")
         summary = input("Enter event summary: ")
-        start_time = input("Enter start time (YYYY-MM-DDTHH:MM:SS): ")
-        end_time = input("Enter end time (YYYY-MM-DDTHH:MM:SS): ")
+        start_time = prompt_for_datetime("Enter start date and time")
+        end_time = prompt_for_datetime("Enter end date and time")
         create_event(calendar_name, summary, start_time, end_time)
     elif choice == "4":
         calendar_name = input("Enter calendar name: ")
-        new_color_hex = input("Enter new color hex (e.g., #ff0000): ")
-        update_calendar_color(calendar_name, new_color_hex)
+        color = input("Enter new color hex (e.g., #ff5722): ")
+        update_calendar_color(calendar_name, color)
     else:
         print("Invalid choice!")
 
