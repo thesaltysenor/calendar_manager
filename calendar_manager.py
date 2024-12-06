@@ -1,5 +1,7 @@
 from datetime import datetime
 import os
+import csv
+import openpyxl
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -66,19 +68,13 @@ def create_calendar(name):
 
 def create_event(calendar_name, summary, start_time, end_time):
     """Add an event to a specific calendar."""
-    # Get calendar ID
-    calendar_id = None
-    calendars_list = service.calendarList().list().execute()
-    for calendar in calendars_list["items"]:
-        if calendar["summary"] == calendar_name:
-            calendar_id = calendar["id"]
-            break
+    calendar_id = get_calendar_id(calendar_name)
 
     if not calendar_id:
         print(f"Calendar '{calendar_name}' not found!")
         return
 
-     # Validate time range
+    # Validate time range
     start = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S")
     end = datetime.strptime(end_time, "%Y-%m-%dT%H:%M:%S")
     if start >= end:
@@ -103,7 +99,6 @@ def create_event(calendar_name, summary, start_time, end_time):
         },
     }
 
-    # Insert the event
     try:
         created_event = service.events().insert(calendarId=calendar_id, body=event).execute()
         print(f"Event created: {created_event['htmlLink']}")
@@ -118,31 +113,58 @@ def prompt_for_datetime(prompt_text):
     day = input("  Day (1-31): ")
     hour = input("  Hour (0-23): ")
     minute = input("  Minute (0-59): ")
+    return f"{year}-{month.zfill(2)}-{day.zfill(2)}T{hour.zfill(2)}:{minute.zfill(2)}:00"
 
-    # Default seconds to "00"
-    date_time = f"{year}-{month.zfill(2)}-{day.zfill(2)}T{hour.zfill(2)}:{minute.zfill(2)}:00"
-    return date_time
-
-
-def update_calendar_color(calendar_name, new_color_hex):
-    """Update a calendar's color."""
-    calendar_id = None
+def get_calendar_id(calendar_name):
+    """Get the calendar ID for a given calendar name."""
     calendars_list = service.calendarList().list().execute()
     for calendar in calendars_list["items"]:
         if calendar["summary"] == calendar_name:
-            calendar_id = calendar["id"]
-            break
+            return calendar["id"]
+    return None
 
+def import_from_csv(calendar_name, csv_file):
+    """Import events from a CSV file."""
+    calendar_id = get_calendar_id(calendar_name)
     if not calendar_id:
         print(f"Calendar '{calendar_name}' not found!")
         return
 
-    service.calendars().patch(
-        calendarId=calendar_id,
-        body={"backgroundColor": new_color_hex},
-        colorRgbFormat=True,
-    ).execute()
-    print(f"Updated color for calendar '{calendar_name}' to {new_color_hex}.")
+    try:
+        with open(csv_file, mode="r", newline="", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                summary = row.get("Summary")
+                start_time = row.get("Start Date")
+                end_time = row.get("End Date")
+
+                if not summary or not start_time or not end_time:
+                    print("Skipping invalid row:", row)
+                    continue
+
+                create_event(calendar_name, summary, start_time, end_time)
+    except Exception as e:
+        print(f"Error processing CSV: {e}")
+
+def import_from_excel(calendar_name, excel_file):
+    """Import events from an Excel file."""
+    calendar_id = get_calendar_id(calendar_name)
+    if not calendar_id:
+        print(f"Calendar '{calendar_name}' not found!")
+        return
+
+    try:
+        workbook = openpyxl.load_workbook(excel_file)
+        sheet = workbook.active
+        for row in sheet.iter_rows(min_row=2, values_only=True):
+            summary, start_time, end_time = row
+            if not summary or not start_time or not end_time:
+                print("Skipping invalid row:", row)
+                continue
+
+            create_event(calendar_name, summary, start_time, end_time)
+    except Exception as e:
+        print(f"Error processing Excel file: {e}")
 
 def main():
     """Main menu for the script."""
@@ -150,7 +172,8 @@ def main():
     print("1. List Calendars")
     print("2. Create Calendar")
     print("3. Add Event")
-    print("4. Update Calendar Color")
+    print("4. Import Bulk Events from CSV")
+    print("5. Import Bulk Events from Excel")
     choice = input("Enter your choice: ")
 
     if choice == "1":
@@ -166,8 +189,12 @@ def main():
         create_event(calendar_name, summary, start_time, end_time)
     elif choice == "4":
         calendar_name = input("Enter calendar name: ")
-        color = input("Enter new color hex (e.g., #ff5722): ")
-        update_calendar_color(calendar_name, color)
+        csv_file = input("Enter the path to the CSV file: ")
+        import_from_csv(calendar_name, csv_file)
+    elif choice == "5":
+        calendar_name = input("Enter calendar name: ")
+        excel_file = input("Enter the path to the Excel file: ")
+        import_from_excel(calendar_name, excel_file)
     else:
         print("Invalid choice!")
 
