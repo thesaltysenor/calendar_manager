@@ -7,3 +7,5 @@ token.json
 
 # Ignore any other `.env`-like configuration files
 *.env
+
+quickstart.py
