@@ -9,4 +9,4 @@ token.json
 *.env
 
 quickstart.py
-calendar_manager.log
+logs/
