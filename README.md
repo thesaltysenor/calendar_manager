@@ -112,5 +112,4 @@ This project is licensed under the MIT License.
 
 💬 Support
 Open an issue on the repository.
-Contact via email: your-email@example.com.
 🎯 Happy Calendar Managing! 🗓️✨
