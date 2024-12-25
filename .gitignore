@@ -9,4 +9,4 @@ token.json
 *.env
 
 quickstart.py
-logs/
+logs
