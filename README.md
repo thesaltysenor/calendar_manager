@@ -18,7 +18,7 @@ Google Calendar Manager is a Python-based tool that streamlines calendar and eve
 1. Clone the Repository
 bash
 Copy code
-git clone https://github.com/yourusername/google-calendar-manager.git
+git clone https://github.com/thesaltysenor/calendar_manager.git
 cd google-calendar-manager
 2. Create a Virtual Environment
 bash
